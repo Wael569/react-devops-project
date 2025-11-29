@@ -31,21 +31,25 @@ pipeline {
 
         stage('Run Docker') {
             steps {
-                bat 'docker build -t %DOCKERHUB%:%TAG% .'
+                bat "docker build -t %DOCKERHUB%:%TAG% ."
             }
         }
 
         stage('Smoke Test') {
             steps {
-                bat 'docker run -d --name release-container -p 3002:80 %DOCKERHUB%:%TAG%'
-                bat 'timeout /t 5 /nobreak'
-                bat 'curl -f http://localhost:3002 || exit 1'
+                // Run container in background
+                bat "docker run -d --name release-container -p 3002:80 %DOCKERHUB%:%TAG%"
+                // Wait ~5 seconds safely in Windows
+                bat "ping 127.0.0.1 -n 6 > nul"
+                // Check if container is serving
+                bat "curl -f http://localhost:3002 || exit 1"
             }
         }
 
         stage('Archive Artifacts') {
             steps {
-                archiveArtifacts artifacts: 'build/**'
+                // Vite build folder is "dist"
+                archiveArtifacts artifacts: 'dist/**'
             }
         }
 
@@ -63,6 +67,7 @@ pipeline {
 
     post {
         always {
+            // Cleanup container even if pipeline fails
             bat 'docker rm -f release-container || true'
         }
     }
