@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     triggers {
-        githubPush()
+        githubPush() // trigger on GitHub push
     }
 
     environment {
@@ -39,7 +39,7 @@ pipeline {
             steps {
                 // Run container in background
                 bat "docker run -d --name release-container -p 3002:80 %DOCKERHUB%:%TAG%"
-                // Wait ~5 seconds safely in Windows
+                // Wait ~5 seconds safely on Windows
                 bat "ping 127.0.0.1 -n 6 > nul"
                 // Check if container is serving
                 bat "curl -f http://localhost:3002 || exit 1"
@@ -55,10 +55,14 @@ pipeline {
 
         stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                 usernameVariable: 'DOCKER_USER',
-                                                 passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds', // must match your Jenkins credential ID
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    // Login to DockerHub using Jenkins credentials
                     bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                    // Push image
                     bat 'docker push %DOCKERHUB%:%TAG%'
                 }
             }
