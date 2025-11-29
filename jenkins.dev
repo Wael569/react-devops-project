@@ -19,43 +19,43 @@ pipeline {
 
         stage('Setup') {
             steps {
-                sh 'npm install'
+                bat 'npm install'
             }
         }
 
         stage('Build') {
             steps {
-                sh 'npm run build'
+                bat 'npm run build'
             }
         }
 
         stage('Run Docker') {
             steps {
-                sh 'docker build -t $DOCKERHUB:${GIT_TAG_NAME} .'
+                bat 'docker build -t $DOCKERHUB:${GIT_TAG_NAME} .'
             }
         }
 
         stage('Smoke Test') {
             steps {
-                sh 'docker run -d --name release-container -p 3002:80 $DOCKERHUB:${GIT_TAG_NAME}'
-                sh 'sleep 5'
-                sh 'curl -f http://localhost:3002 || exit 1'
+                bat 'docker run -d --name release-container -p 3002:80 $DOCKERHUB:${GIT_TAG_NAME}'
+                bat 'sleep 5'
+                bat 'curl -f http://localhost:3002 || exit 1'
             }
         }
 
         stage('Archive Artifacts') {
             steps {
-                archiveArtifacts artifacts: 'build/**'
+                archiveArtifacts artifacts: 'dist/**'
             }
         }
 
         stage('Push to DockerHub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                 usernameVariable: 'USER',
-                                                 passwordVariable: 'PASS')]) {
-                    sh 'echo "$PASS" | docker login -u "$USER" --password-stdin'
-                    sh 'docker push $DOCKERHUB:${GIT_TAG_NAME}'
+                                                 usernameVariable: 'wael75613',
+                                                 passwordVariable: '13660341')]) {
+                    bat 'echo "$PASS" | docker login -u "$USER" --password-stdin'
+                    bat 'docker push $DOCKERHUB:${GIT_TAG_NAME}'
                 }
             }
         }
@@ -63,7 +63,7 @@ pipeline {
 
     post {
         always {
-            sh 'docker rm -f release-container || true'
+            bat 'docker rm -f release-container || true'
         }
     }
 }
