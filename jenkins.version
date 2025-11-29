@@ -1,69 +1,70 @@
 pipeline {
-    agent any
+  agent any
 
-    triggers {
-        // triggers only if pushing a tag
-        gitlabPush(triggerOnTag: true)
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    environment {
-        DOCKERHUB = 'wael75613/react-app'
+    stage('Setup') {
+      steps {
+        sh 'npm install'
+      }
     }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Setup') {
-            steps {
-                sh 'npm install'
-            }
-        }
-
-        stage('Build') {
-            steps {
-                sh 'npm run build'
-            }
-        }
-
-        stage('Run Docker') {
-            steps {
-                sh 'docker build -t $DOCKERHUB:${GIT_TAG_NAME} .'
-            }
-        }
-
-        stage('Smoke Test') {
-            steps {
-                sh 'docker run -d --name release-container -p 3002:80 $DOCKERHUB:${GIT_TAG_NAME}'
-                sh 'sleep 5'
-                sh 'curl -f http://localhost:3002 || exit 1'
-            }
-        }
-
-        stage('Archive Artifacts') {
-            steps {
-                archiveArtifacts artifacts: 'build/**'
-            }
-        }
-
-        stage('Push to DockerHub') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                 usernameVariable: 'USER',
-                                                 passwordVariable: 'PASS')]) {
-                    sh 'echo "$PASS" | docker login -u "$USER" --password-stdin'
-                    sh 'docker push $DOCKERHUB:${GIT_TAG_NAME}'
-                }
-            }
-        }
+    stage('Build') {
+      steps {
+        sh 'npm run build'
+      }
     }
 
-    post {
-        always {
-            sh 'docker rm -f release-container || true'
+    stage('Docker Build') {
+      steps {
+        script {
+          // set image tag: use the Git tag name if present, otherwise use 'latest'
+          def imgTag = env.GIT_TAG_NAME ?: 'latest'
+          sh "docker build -t wael75613/react-app:${imgTag} ."
         }
+      }
     }
+
+    stage('Smoke Test') {
+      steps {
+        script {
+          def imgTag = env.GIT_TAG_NAME ?: 'latest'
+          sh "docker run -d --name rel-container -p 3000:80 wael75613/react-app:${imgTag}"
+          sleep 5
+          sh 'curl -f http://localhost:3000 || exit 1'
+        }
+      }
+    }
+
+    stage('Archive Artifacts') {
+      steps {
+        archiveArtifacts artifacts: 'build/**', fingerprint: true
+      }
+    }
+
+    stage('Push to DockerHub') {
+      when {
+        expression { return env.GIT_TAG_NAME }
+      }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                                         usernameVariable: 'USER',
+                                         passwordVariable: 'PASS')]) {
+          sh 'echo "$PASS" | docker login -u "$USER" --password-stdin'
+          sh "docker push wael75613/react-app:${env.GIT_TAG_NAME}"
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker rm -f rel-container || true'
+    }
+  }
 }
