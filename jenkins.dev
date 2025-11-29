@@ -8,6 +8,7 @@ pipeline {
     environment {
         DOCKERHUB = 'wael75613/react-app'
         TAG = 'latest'
+        PORT = '3000' // dynamic port variable
     }
 
     stages {
@@ -29,7 +30,7 @@ pipeline {
             }
         }
 
-        stage('Run Docker') {
+        stage('Build Docker Image') {
             steps {
                 bat "docker build -t %DOCKERHUB%:%TAG% ."
             }
@@ -42,17 +43,17 @@ pipeline {
                     env.CONTAINER_NAME = "release-container-${env.BUILD_NUMBER}"
                 }
                 // Run container in background
-                bat "docker run -d --name %CONTAINER_NAME% -p 3000:80 %DOCKERHUB%:%TAG%"
-                // Wait ~5 seconds safely on Windows
+                bat "docker run -d --name %CONTAINER_NAME% -p %PORT%:80 %DOCKERHUB%:%TAG%"
+                // Wait a few seconds to let container start
                 bat "ping 127.0.0.1 -n 6 > nul"
-                // Check if container is serving
-                bat "curl -f http://localhost:3000 || exit 1"
+                // Smoke test: check if the app is serving
+                bat "curl -f http://localhost:%PORT% || exit 1"
             }
         }
 
         stage('Archive Artifacts') {
             steps {
-                // Vite build folder is "dist"
+                // Archive Vite build folder
                 archiveArtifacts artifacts: 'dist/**'
             }
         }
@@ -60,11 +61,11 @@ pipeline {
         stage('Push to DockerHub') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds1', // your Jenkins credentials
+                    credentialsId: 'dockerhub-creds1', // your Jenkins DockerHub credential ID
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    // Login to DockerHub
+                    // Login to DockerHub using PAT
                     bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
                     // Push Docker image
                     bat 'docker push %DOCKERHUB%:%TAG%'
