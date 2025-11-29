@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     triggers {
-        // triggers only if pushing a tag
-        gitlabPush(triggerOnTag: true)
+        githubPush()
     }
 
     environment {
         DOCKERHUB = 'wael75613/react-app'
+        TAG = 'latest'
     }
 
     stages {
@@ -31,31 +31,31 @@ pipeline {
 
         stage('Run Docker') {
             steps {
-                bat 'docker build -t $DOCKERHUB:${GIT_TAG_NAME} .'
+                bat 'docker build -t %DOCKERHUB%:%TAG% .'
             }
         }
 
         stage('Smoke Test') {
             steps {
-                bat 'docker run -d --name release-container -p 3002:80 $DOCKERHUB:${GIT_TAG_NAME}'
-                bat 'sleep 5'
+                bat 'docker run -d --name release-container -p 3002:80 %DOCKERHUB%:%TAG%'
+                bat 'timeout /t 5 /nobreak'
                 bat 'curl -f http://localhost:3002 || exit 1'
             }
         }
 
         stage('Archive Artifacts') {
             steps {
-                archiveArtifacts artifacts: 'dist/**'
+                archiveArtifacts artifacts: 'build/**'
             }
         }
 
         stage('Push to DockerHub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                 usernameVariable: 'wael75613',
-                                                 passwordVariable: '13660341')]) {
-                    bat 'echo "$PASS" | docker login -u "$USER" --password-stdin'
-                    bat 'docker push $DOCKERHUB:${GIT_TAG_NAME}'
+                                                 usernameVariable: 'DOCKER_USER',
+                                                 passwordVariable: 'DOCKER_PASS')]) {
+                    bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                    bat 'docker push %DOCKERHUB%:%TAG%'
                 }
             }
         }
