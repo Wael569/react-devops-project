@@ -37,8 +37,12 @@ pipeline {
 
         stage('Smoke Test') {
             steps {
+                script {
+                    // Dynamic container name to prevent conflicts
+                    env.CONTAINER_NAME = "release-container-${env.BUILD_NUMBER}"
+                }
                 // Run container in background
-                bat "docker run -d --name release-container -p 3002:80 %DOCKERHUB%:%TAG%"
+                bat "docker run -d --name %CONTAINER_NAME% -p 3002:80 %DOCKERHUB%:%TAG%"
                 // Wait ~5 seconds safely on Windows
                 bat "ping 127.0.0.1 -n 6 > nul"
                 // Check if container is serving
@@ -56,13 +60,13 @@ pipeline {
         stage('Push to DockerHub') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds1', // must match your Jenkins credential ID
+                    credentialsId: 'dockerhub-creds1', // your Jenkins credentials
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    // Login to DockerHub using Jenkins credentials
+                    // Login to DockerHub
                     bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
-                    // Push image
+                    // Push Docker image
                     bat 'docker push %DOCKERHUB%:%TAG%'
                 }
             }
@@ -72,7 +76,7 @@ pipeline {
     post {
         always {
             // Cleanup container even if pipeline fails
-            bat 'docker rm -f release-container || true'
+            bat 'docker rm -f %CONTAINER_NAME% || true'
         }
     }
 }
