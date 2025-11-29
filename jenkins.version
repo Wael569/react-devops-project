@@ -10,13 +10,13 @@ pipeline {
 
     stage('Setup') {
       steps {
-        sh 'npm install'
+        bat 'npm install'
       }
     }
 
     stage('Build') {
       steps {
-        sh 'npm run build'
+        bat 'npm run build'
       }
     }
 
@@ -25,7 +25,7 @@ pipeline {
         script {
           // set image tag: use the Git tag name if present, otherwise use 'latest'
           def imgTag = env.GIT_TAG_NAME ?: 'latest'
-          sh "docker build -t wael75613/react-app:${imgTag} ."
+          bat "docker build -t wael75613/react-app:${imgTag} ."
         }
       }
     }
@@ -34,9 +34,9 @@ pipeline {
       steps {
         script {
           def imgTag = env.GIT_TAG_NAME ?: 'latest'
-          sh "docker run -d --name rel-container -p 3000:80 wael75613/react-app:${imgTag}"
+          bat "docker run -d --name rel-container -p 3000:80 wael75613/react-app:${imgTag}"
           sleep 5
-          sh 'curl -f http://localhost:3000 || exit 1'
+          bat 'curl -f http://localhost:3000 || exit 1'
         }
       }
     }
@@ -55,8 +55,8 @@ pipeline {
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
                                          usernameVariable: 'USER',
                                          passwordVariable: 'PASS')]) {
-          sh 'echo "$PASS" | docker login -u "$USER" --password-stdin'
-          sh "docker push wael75613/react-app:${env.GIT_TAG_NAME}"
+          bat 'echo "$PASS" | docker login -u "$USER" --password-stdin'
+          bat "docker push wael75613/react-app:${env.GIT_TAG_NAME}"
         }
       }
     }
@@ -64,7 +64,7 @@ pipeline {
 
   post {
     always {
-      sh 'docker rm -f rel-container || true'
+      bat 'docker rm -f rel-container || true'
     }
   }
 }
