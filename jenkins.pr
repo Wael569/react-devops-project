@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+
+    triggers {
+        githubPullRequest()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Setup') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'npm run build'
+            }
+        }
+
+        stage('Run Docker') {
+            steps {
+                sh 'docker build -t react-app-pr .'
+                sh 'docker run -d --name pr-container -p 3000:80 react-app-pr'
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                sh "sleep 5"
+                sh "curl -f http://localhost:3000 || exit 1"
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                archiveArtifacts artifacts: 'build/**'
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker rm -f pr-container || true'
+        }
+    }
+}
