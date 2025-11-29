@@ -2,30 +2,24 @@ pipeline {
   agent any
 
   stages {
+
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Setup') {
-      steps {
-        bat 'npm install'
-      }
+      steps { bat 'npm install' }
     }
 
     stage('Build') {
-      steps {
-        bat 'npm run build'
-      }
+      steps { bat 'npm run build' }
     }
 
     stage('Docker Build') {
       steps {
         script {
-          // set image tag: use the Git tag name if present, otherwise use 'latest'
-          def imgTag = env.GIT_TAG_NAME ?: 'latest'
-          bat "docker build -t wael75613/react-app:${imgTag} ."
+          env.IMG_TAG = env.GIT_TAG_NAME ?: 'latest'
+          bat "docker build -t wael75613/react-app:%IMG_TAG% ."
         }
       }
     }
@@ -33,30 +27,30 @@ pipeline {
     stage('Smoke Test') {
       steps {
         script {
-          def imgTag = env.GIT_TAG_NAME ?: 'latest'
-          bat "docker run -d --name rel-container -p 3000:80 wael75613/react-app:${imgTag}"
+          env.CONTAINER_NAME = "rel-container-${env.BUILD_NUMBER}"
+          bat "docker run -d --name %CONTAINER_NAME% -p 3000:80 wael75613/react-app:%IMG_TAG%"
           sleep 5
-          bat 'curl -f http://localhost:3000 || exit 1'
+          bat "curl -f http://localhost:3000 || exit 1"
         }
       }
     }
 
     stage('Archive Artifacts') {
       steps {
-        archiveArtifacts artifacts: 'dist/**', fingerprint: true
+        archiveArtifacts artifacts: 'dist/**', fingerprint: true     // <-- FIXED
       }
     }
 
     stage('Push to DockerHub') {
-      when {
-        expression { return env.GIT_TAG_NAME }
-      }
+      when { expression { env.GIT_TAG_NAME } }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                         usernameVariable: 'USER',
-                                         passwordVariable: 'PASS')]) {
-          bat 'echo "$PASS" | docker login -u "$USER" --password-stdin'
-          bat "docker push wael75613/react-app:${env.GIT_TAG_NAME}"
+        withCredentials([usernamePassword(
+          credentialsId: 'dockerhub-creds',
+          usernameVariable: 'USER',
+          passwordVariable: 'PASS'
+        )]) {
+          bat 'echo %PASS% | docker login -u %USER% --password-stdin'
+          bat "docker push wael75613/react-app:%IMG_TAG%"
         }
       }
     }
@@ -64,7 +58,7 @@ pipeline {
 
   post {
     always {
-      bat 'docker rm -f rel-container || true'
+      bat 'docker rm -f %CONTAINER_NAME% || true'   // <-- dynamic cleanup
     }
   }
 }
