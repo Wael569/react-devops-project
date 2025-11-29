@@ -1,53 +1,57 @@
 pipeline {
-    agent any
+  agent any
 
-    triggers {
-        githubPullRequests()
+  // WARNING: 
+  // cannot rely on GitHub-trigger here. This pipeline works only if you start it manually.
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Setup') {
-            steps {
-                sh 'npm install'
-            }
-        }
-
-        stage('Build') {
-            steps {
-                sh 'npm run build'
-            }
-        }
-
-        stage('Run Docker') {
-            steps {
-                sh 'docker build -t react-app-pr .'
-                sh 'docker run -d --name pr-container -p 3000:80 react-app-pr'
-            }
-        }
-
-        stage('Smoke Test') {
-            steps {
-                sh "sleep 5"
-                sh "curl -f http://localhost:3000 || exit 1"
-            }
-        }
-
-        stage('Archive Artifacts') {
-            steps {
-                archiveArtifacts artifacts: 'build/**'
-            }
-        }
+    stage('Setup') {
+      steps {
+        sh 'npm install'
+      }
     }
 
-    post {
-        always {
-            sh 'docker rm -f pr-container || true'
-        }
+    stage('Build') {
+      steps {
+        sh 'npm run build'
+      }
     }
+
+    stage('Docker Build') {
+      steps {
+        sh 'docker build -t react-app-pr .'
+      }
+    }
+
+    stage('Run Docker') {
+      steps {
+        sh 'docker run -d --name pr-container -p 3000:80 react-app-pr'
+      }
+    }
+
+    stage('Smoke Test') {
+      steps {
+        sleep 5
+        sh 'curl -f http://localhost:3000 || exit 1'
+      }
+    }
+
+    stage('Archive Artifacts') {
+      steps {
+        archiveArtifacts artifacts: 'build/**', fingerprint: true
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker rm -f pr-container || true'
+    }
+  }
 }
